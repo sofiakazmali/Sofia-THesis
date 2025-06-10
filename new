@@ -1,0 +1,510 @@
+
+---
+title: "Sofia Thesis"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+# Global options
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+```
+
+## R Markdown
+
+# Loading the necessary packages
+```{r}
+library(openxlsx)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(skimr)
+library(ggplot2)
+library(lubridate)
+```
+
+# Reading our CSV
+```{r}
+
+df1 <- read_csv2("cons_sec.csv")
+df2 <- read_csv2("right_left.csv")
+df3 <- read_csv2("market.csv")
+
+```
+
+```{r}
+# Select correct columns
+df1 <- df1 %>%
+  select(Month, Total, Household_cons, Industrial_cons, Energy_sector_cons) %>%
+  filter(!grepl("Total", Month)) %>%
+  mutate(Month = dmy(Month))
+
+```
+
+
+```{r}
+library(lubridate)
+df1_long <- df1 %>%
+  pivot_longer(cols = c(Household_cons, Industrial_cons, Energy_sector_cons),
+               names_to = "Sector",
+               values_to = "Consumption")
+
+# Plot all three on the same chart
+ggplot(df1_long, aes(x = Month, y = Consumption, color = Sector)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2) +
+  labs(
+    title = "Monthly Gas Consumption by Sector",
+    x = "Month",
+    y = "Consumption (million m³)",
+    color = "Sector"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Actual Dataset
+```{r}
+library(stringr)
+
+# Read df2
+df2 <- read_csv2("right_left.csv") %>%
+  select(Month, price_USD_mcubed) %>%
+  filter(!grepl("Total", Month)) %>%               # Remove totals BEFORE parsing dates
+  mutate(
+    Month = str_trim(Month),                       # Remove any leading/trailing spaces
+    Month = dmy(Month),                            # Convert to Date object
+    price_USD_mcubed = as.numeric(gsub(",", ".", price_USD_mcubed))
+  ) %>%
+  arrange(Month)
+df1 <- read_csv2("cons_sec.csv") %>%
+  select(Month, Total, Household_cons, Industrial_cons, Energy_sector_cons) %>%
+  filter(!grepl("Total", Month)) %>%
+  mutate(
+    Month = str_trim(Month),
+    Month = dmy(Month)
+  ) %>%
+  arrange(Month)
+# Full safe merge
+df1_merged <- inner_join(df1, df2, by = "Month")
+
+
+```
+
+
+# Unit Roots
+```{r}
+library(tseries)
+
+# Augmented Dickey-Fuller test
+adf.test(total_ts)
+
+```
+
+# Autocorrelation, Lyung Box
+```{r}
+acf(total_ts, main = "ACF of Total Consumption")
+pacf(total_ts, main = "PACF of Total Consumption")
+
+# Test for autocorrelation up to lag 12
+Box.test(total_ts, lag = 12, type = "Ljung-Box")
+
+```
+
+# Regresyon
+```{r}
+model <- lm(Total ~ Household_cons + Industrial_cons + Energy_sector_cons, data = df1)
+summary(model)
+
+library(sandwich)
+library(lmtest)
+
+# Newey-West standard errors
+coeftest(model, vcov = NeweyWest(model, lag = 12, prewhite = FALSE))
+```
+
+# Time series cross-validation
+```{r}
+# Load libraries
+library(dplyr)
+library(lubridate)
+library(readr)
+library(sandwich)
+library(lmtest)
+
+# Read and clean df2
+df2 <- read_csv2("right_left.csv") %>%
+  select(Month, `Left bank`, `Right bank`, Total, price_USD_mcubed) %>%
+  filter(!grepl("Total", Month)) %>%
+  mutate(Month = dmy(Month),
+         price_USD_mcubed = as.numeric(gsub(",", ".", price_USD_mcubed))) %>%
+  arrange(Month)
+
+# 75%-25% time-based split
+n_total <- nrow(df2)
+n_train <- floor(0.75 * n_total)
+
+train <- df2[1:n_train, ]
+test  <- df2[(n_train + 1):n_total, ]
+
+# Linear regression (here we use price + left + right to predict Total)
+model_train <- lm(Total ~ `Left bank` + `Right bank` + price_USD_mcubed, data = train)
+
+# Normal OLS summary
+summary(model_train)
+
+# Newey-West HAC corrected standard errors (lag 12 for monthly data)
+nw_se <- NeweyWest(model_train, lag = 12, prewhite = FALSE)
+coeftest(model_train, vcov = nw_se)
+
+# Predict on test set
+predictions <- predict(model_train, newdata = test)
+
+# Calculate RMSE
+rmse <- sqrt(mean((test$Total - predictions)^2))
+rmse
+
+```
+
+```{r}
+split_date <- as.Date("2023-01-01")
+```
+
+```{r}
+df1_merged$Period <- ifelse(df1_merged$Month < split_date, "Before", "After")
+```
+
+
+```{r}
+df_raw <- read_csv2("right_left.csv")
+head(df_raw$price_USD_mcubed, 20)
+```
+
+```{r}
+df2 <- read_csv2("right_left.csv") %>%
+  mutate(
+    price_USD_mcubed = str_trim(price_USD_mcubed),
+    price_USD_mcubed = na_if(price_USD_mcubed, ""),          # blanks to NA
+    price_USD_mcubed = gsub(",", ".", price_USD_mcubed),
+    price_USD_mcubed = as.numeric(price_USD_mcubed)
+  )
+```
+
+```{r}
+summary(df2$price_USD_mcubed)
+```
+
+
+```{r}
+sum(is.na(df1$Month))
+sum(is.na(df2$Month))
+```
+
+```{r}
+setdiff(df1$Month, df2$Month)
+setdiff(df2$Month, df1$Month)
+```
+
+
+```{r}
+library(readr)
+library(dplyr)
+library(lubridate)
+
+# Load your merged CSV (assuming ; as separator)
+df <- read_csv2("cons_sec_price_merged.csv")
+
+# Inspect
+str(df)
+head(df)
+```
+
+```{r}
+df <- df %>%
+  mutate(Month = as.Date(Month))
+```
+
+```{r}
+library(readr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+
+# Clean and convert columns
+df <- df %>%
+  mutate(
+    Month = dmy(str_trim(Month)),  # Parse "01.01.2019" as date
+    price_USD_mcubed = as.numeric(str_replace_all(str_trim(price_USD_mcubed), ",", "."))
+  )
+
+# Check your data
+str(df)
+summary(df$price_USD_mcubed)
+head(df)
+
+# Split by period (set your cutoff date as needed)
+change_date <- as.Date("2023-01-01")  # change as appropriate
+df <- df %>%
+  mutate(Period = ifelse(Month < change_date, "Before", "After"))
+
+# Example: create time series for Total, split by Period
+df_before <- filter(df, Period == "Before")
+df_after  <- filter(df, Period == "After")
+
+ts_before <- ts(df_before$Total, start = c(year(min(df_before$Month)), month(min(df_before$Month))), frequency = 12)
+ts_after  <- ts(df_after$Total, start = c(year(min(df_after$Month)), month(min(df_after$Month))), frequency = 12)
+
+# Plot (optional)
+plot(ts_before, col = "blue", main = "Total Gas Consumption: Before/After", ylab = "Total", xlab = "Time")
+lines(ts_after, col = "red")
+legend("topright", legend = c("Before", "After"), col = c("blue", "red"), lty = 1)
+```
+
+
+```{r}
+# Ensure Month is a Date object
+df <- df %>%
+  mutate(Month = dmy(Month)) %>%
+  arrange(Month)
+```
+
+# Cross validation 
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(sandwich)
+library(lmtest)
+
+library(stringr)
+library(readr)
+
+df$price_USD_mcubed <- parse_number(str_replace_all(df$price_USD_mcubed, ",", "."))
+
+
+
+# 75%-25% time-based split
+n_total <- nrow(df)
+n_train <- floor(0.75 * n_total)
+
+train <- df[1:n_train, ]
+test  <- df[(n_train + 1):n_total, ]
+```
+
+
+```{r}
+# Linear regression model
+model_cv <- lm(price_USD_mcubed ~ Household_cons + Industrial_cons + Energy_sector_cons, data = train)
+
+summary(model_cv)
+
+```
+
+Robustness checks
+```{r}
+# HAC corrected standard errors
+nw_se_cv <- NeweyWest(model_cv, lag = 12, prewhite = FALSE)
+coeftest(model_cv, vcov = nw_se_cv)
+
+# Predict and calculate RMSE
+predicted <- predict(model_cv, newdata = test)
+rmse_cv <- sqrt(mean((test$Total - predicted)^2))
+rmse_cv
+```
+
+# Remove NA
+```{r}
+df <- df[-c(72:75), ]
+```
+
+
+
+## Robustness Checks
+```{r}
+# Load necessary packages
+library(readr)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(tseries)
+
+# STEP 1: Clean the data
+df <- df %>%
+  mutate(
+    Month = as.Date(Month, format = "%d.%m.%Y"),
+    price_USD_mcubed = as.numeric(str_replace_all(str_trim(price_USD_mcubed), ",", "."))
+  ) %>%
+  filter(complete.cases(price_USD_mcubed)) %>%
+  arrange(Month)
+
+# STEP 2: Drop trailing NA rows if needed (optional manual fix)
+# df <- df[-c(72:75), ]  # uncomment if you know these rows are bad
+
+# STEP 3: Extract time series start info
+start_year <- as.integer(format(min(df$Month), "%Y"))
+start_month <- as.integer(format(min(df$Month), "%m"))
+
+# STEP 4: Create the monthly time series object
+price_ts <- ts(
+  df$price_USD_mcubed,
+  start = c(start_year, start_month),
+  frequency = 12
+)
+
+# STEP 5: Plot ACF and PACF
+acf(price_ts, main = "ACF of Price (USD per m³)")
+pacf(price_ts, main = "PACF of Price (USD per m³)")
+
+# STEP 6: Ljung-Box test for autocorrelation
+Box.test(price_ts, lag = 12, type = "Ljung-Box")
+
+# STEP 7: Augmented Dickey-Fuller (ADF) test for unit root
+adf.test(price_ts)
+
+```
+
+There is autocorrelation and non-stationarity present!
+
+# First Differencing and Seasonal Dummies
+```{r}
+df <- df %>%
+  mutate(price_diff = c(NA, diff(price_USD_mcubed))) %>%
+  filter(!is.na(price_diff))
+
+df <- df %>%
+  mutate(Month_num = month(Month),
+         Month_factor = as.factor(Month_num))
+df <- df %>%
+  mutate(Time = 1:n())
+
+
+```
+
+# New Regression
+```{r}
+model_diff <- lm(
+  price_diff ~ Household_cons + Industrial_cons + Energy_sector_cons + Month_factor,
+  data = df
+)
+summary(model_diff)
+
+```
+
+# Second differencing
+```{r}
+adf.test(df$price_diff)
+
+df <- df %>%
+  mutate(price_diff2 = c(NA, diff(price_diff))) %>%
+  filter(!is.na(price_diff2))
+
+model_diff2 <- lm(
+  price_diff2 ~ Household_cons + Industrial_cons + Energy_sector_cons + Month_factor,
+  data = df
+)
+summary(model_diff2)
+
+```
+
+# Seasons
+```{r}
+df <- df %>%
+  mutate(Season = case_when(
+    month(Month) %in% c(12, 1, 2) ~ "Winter",
+    month(Month) %in% c(3, 4, 5) ~ "Spring",
+    month(Month) %in% c(6, 7, 8) ~ "Summer",
+    TRUE ~ "Autumn"
+  )) %>%
+  mutate(Season = factor(Season, levels = c("Winter", "Spring", "Summer", "Autumn")))
+
+model_season <- lm(
+  price_diff ~ Household_cons + Industrial_cons + Energy_sector_cons + Season,
+  data = df
+)
+summary(model_season)
+
+```
+
+# Lagged Variables
+```{r}
+df <- df %>%
+  mutate(
+    lag_Household = lag(Household_cons),
+    lag_Industrial = lag(Industrial_cons),
+    lag_Energy = lag(Energy_sector_cons)
+  ) %>%
+  filter(!is.na(lag_Household))  # remove first NA row due to lag
+
+model_lagged <- lm(
+  price_diff ~ lag_Household + lag_Industrial + lag_Energy + Season,
+  data = df
+)
+summary(model_lagged)
+
+model_trend <- lm(
+  price_diff ~ Household_cons + Industrial_cons + Energy_sector_cons + Time + Season,
+  data = df
+)
+summary(model_trend)
+
+```
+# Linear Regression with Policy Implementation
+```{r}
+library(dplyr)
+library(lubridate)
+library(stringr)
+
+# Step 1: Prepare variables
+df <- df %>%
+  mutate(
+    Month = as.Date(Month, format = "%d.%m.%Y"),
+    
+    # First difference for stationarity
+    price_USD_mcubed = as.numeric(str_replace_all(price_USD_mcubed, ",", ".")),
+    price_diff = c(NA, diff(price_USD_mcubed)),
+    
+    # Season as factor
+    Season = case_when(
+      month(Month) %in% c(12, 1, 2) ~ "Winter",
+      month(Month) %in% c(3, 4, 5) ~ "Spring",
+      month(Month) %in% c(6, 7, 8) ~ "Summer",
+      TRUE ~ "Autumn"
+    ),
+    
+    # Policy dummy: 1 if Month ≥ Jan 2023
+    policy = if_else(Month >= as.Date("2023-01-01"), 1, 0),
+    
+    # Optional: time trend (can be removed)
+    Time = 1:n()
+  ) %>%
+  filter(!is.na(price_diff)) %>%
+  mutate(Season = factor(Season, levels = c("Winter", "Spring", "Summer", "Autumn")))
+
+# Step 2: Run regression with policy effect and seasonality
+model_policy <- lm(
+  price_diff ~ Household_cons + Industrial_cons + Energy_sector_cons + Season + policy,
+  data = df
+)
+
+# Step 3: Summarize model
+summary(model_policy)
+
+```
+
+# Lagged Variables with Policy
+```{r}
+
+model_lagged_policy <- lm(
+  price_diff ~ lag_Household + lag_Industrial + lag_Energy + Season + policy,
+  data = df
+)
+summary(model_lagged_policy)
+
+```
+
+```{r}
+
+```
+
