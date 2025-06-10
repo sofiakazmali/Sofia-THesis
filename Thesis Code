@@ -10,7 +10,6 @@ output: html_document
 # Global options
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
-
 ```
 
 ## R Markdown
@@ -177,15 +176,6 @@ split_date <- as.Date("2023-01-01")
 df1_merged$Period <- ifelse(df1_merged$Month < split_date, "Before", "After")
 ```
 
-```{r}
-head(df1$Month)
-head(df2$Month)
-```
-
-```{r}
-str(df1$Month)
-str(df2$Month)
-```
 
 ```{r}
 df_raw <- read_csv2("right_left.csv")
@@ -206,142 +196,6 @@ df2 <- read_csv2("right_left.csv") %>%
 summary(df2$price_USD_mcubed)
 ```
 
-```{r}
-unique(df_raw$price_USD_mcubed)
-```
-
-```{r}
-bad_prices <- df_raw$price_USD_mcubed[is.na(as.numeric(gsub(",", ".", df_raw$price_USD_mcubed)))]
-unique(bad_prices)
-```
-
-```{r}
-lines <- readLines("right_left.csv")
-lines[30:50] # Inspect problematic lines
-```
-
-```{r}
-library(readr)
-df_test <- read_csv2("right_left.csv")
-problems(df_test)
-```
-
-```{r}
-df2 <- df2 %>%
-  filter(!grepl("Total", Month))
-```
-
-```{r}
-df2 <- read_csv2("right_left2.csv")
-```
-
-```{r}
-df2 <- read_csv2("right_left2.csv") %>%
-  mutate(
-    Month = str_trim(Month),
-    Month = dmy(Month)
-  ) %>%
-  arrange(Month)
-```
-
-```{r}
-str(df2$price_USD_mcubed)
-```
-
-```{r}
-library(readr)
-library(dplyr)
-library(stringr)
-library(lubridate)
-
-df2 <- read_csv2("right_left2.csv") %>%
-  mutate(
-    Month = str_trim(Month),
-    Month = dmy(Month)
-  ) %>%
-  arrange(Month)
-
-# Check the result
-str(df2)
-summary(df2$price_USD_mcubed)
-```
-
-```{r}
-df2 <- df2[-c(73:78), ]
-```
-
-```{r}
-str(df1$Month)
-str(df2$Month)
-```
-
-```{r}
-library(dplyr)
-anti_join(df1, df2, by = "Month")
-```
-
-```{r}
-anti_join(df2, df1, by = "Month")
-```
-
-```{r}
-unique(df1$Month)
-unique(df2$Month)
-```
-
-```{r}
-df1 <- df1 %>%
-  mutate(Month = as.Date(format(Month, "%Y-%m-01")))
-df2 <- df2 %>%
-  mutate(Month = as.Date(format(Month, "%Y-%m-01")))
-```
-
-```{r}
-df_merged <- inner_join(df1, df2 %>% select(Month, price_USD_mcubed), by = "Month")
-```
-
-```{r}
-head(df1$Month, 20)
-head(df2$Month, 20)
-```
-
-```{r}
-anti_join(df1, df2, by = "Month")
-```
-
-```{r}
-library(readr)
-library(dplyr)
-library(stringr)
-library(lubridate)
-
-df1 <- read_csv2("cons_sec2.csv") %>%
-  filter(!is.na(Month), !grepl("[a-zA-Z]", Month)) %>%  # Removes blank/Total/etc.
-  mutate(
-    Month = str_trim(Month),
-    Month = dmy(Month)
-  ) %>%
-  filter(!is.na(Month)) %>%
-  arrange(Month)
-```
-
-```{r}
-df2 <- read_csv2("right_left2.csv") %>%
-  filter(!is.na(Month), !grepl("[a-zA-Z]", Month)) %>%  # Removes blank/Total/etc.
-  mutate(
-    Month = str_trim(Month),
-    Month = dmy(Month),
-    price_USD_mcubed = str_replace_all(str_trim(price_USD_mcubed), ",", "."),
-    price_USD_mcubed = as.numeric(price_USD_mcubed)
-  ) %>%
-  filter(!is.na(Month)) %>%
-  arrange(Month)
-```
-
-```{r}
-str(df1)
-str(df2)
-```
 
 ```{r}
 sum(is.na(df1$Month))
@@ -349,70 +203,10 @@ sum(is.na(df2$Month))
 ```
 
 ```{r}
-head(df1$Month, 10)
-head(df2$Month, 10)
-tail(df1$Month, 10)
-tail(df2$Month, 10)
-```
-
-```{r}
-df1 <- df1 %>% select(Month, Total, Household_cons, Industrial_cons, Energy_sector_cons)
-df2 <- df2 %>% select(Month, Left_bank, Right_bank, Total, price_USD_mcubed)
-```
-
-```{r}
-# Remove rows 73 and 74 from df1 (assuming current row order is correct)
-df1 <- df1[-c(73, 74), ]
-
-# Now merge with df2 by Month
-df_merged <- inner_join(df1, df2 %>% select(Month, price_USD_mcubed), by = "Month")
-
-# Check the result
-str(df_merged)
-tail(df_merged$Month)
-```
-
-```{r}
 setdiff(df1$Month, df2$Month)
 setdiff(df2$Month, df1$Month)
 ```
 
-```{r}
-head(df1$Month, 10)
-head(df2$Month, 10)
-tail(df1$Month, 10)
-tail(df2$Month, 10)
-```
-
-```{r}
-str(df1$Month)
-str(df2$Month)
-```
-
-```{r}
-df1$Month <- as.Date(format(df1$Month, "%Y-%m-01"))
-df2$Month <- as.Date(format(df2$Month, "%Y-%m-01"))
-```
-
-```{r}
-df_merged <- inner_join(df1, df2 %>% select(Month, price_USD_mcubed), by = "Month")
-```
-
-```{r}
-summary(df_merged)
-table(is.na(df_merged$price_USD_mcubed))
-```
-
-```{r}
-df_merged$price_USD_mcubed[df_merged$price_USD_mcubed == ""] <- NA
-df_merged$price_USD_mcubed[df_merged$price_USD_mcubed == "NA"] <- NA
-df_merged$price_USD_mcubed <- as.numeric(df_merged$price_USD_mcubed)
-```
-
-```{r}
-table(is.na(df_merged$price_USD_mcubed))
-summary(df_merged$price_USD_mcubed)
-```
 
 ```{r}
 library(readr)
@@ -437,9 +231,6 @@ library(readr)
 library(dplyr)
 library(lubridate)
 library(stringr)
-
-# Load the merged file (adjust path as needed)
-df <- read_csv2("cons_sec_price_merged.csv")
 
 # Clean and convert columns
 df <- df %>%
@@ -477,29 +268,10 @@ df_after  <- subset(df, Period == "After")
 ```
 
 ```{r}
-# For Households
-model_household_before <- lm(Household_cons ~ price_USD_mcubed, data = df_before)
-model_household_after  <- lm(Household_cons ~ price_USD_mcubed, data = df_after)
-
-# For Industry
-model_industrial_before <- lm(Industrial_cons ~ price_USD_mcubed, data = df_before)
-model_industrial_after  <- lm(Industrial_cons ~ price_USD_mcubed, data = df_after)
-
-# For Energy Sector
-model_energy_before <- lm(Energy_sector_cons ~ price_USD_mcubed, data = df_before)
-model_energy_after  <- lm(Energy_sector_cons ~ price_USD_mcubed, data = df_after)
+# Linear Model
+lm_thesis <- lm(Household_cons ~ price_USD_mcubed, data = df_before)
 ```
 
-```{r}
-summary(model_household_before)
-summary(model_household_after)
-
-summary(model_industrial_before)
-summary(model_industrial_after)
-
-summary(model_energy_before)
-summary(model_energy_after)
-```
 
 ```{r}
 library(broom)
@@ -512,71 +284,4 @@ results <- bind_rows(
   tidy(model_energy_after)  %>% mutate(group = "Energy", period = "After")
 )
 print(results)
-```
-
-```{r}
-# Split your data by period (make sure 'Period' is already in your dataframe)
-df_before <- subset(df, Period == "Before")
-df_after  <- subset(df, Period == "After")
-
-# Regression: Household consumption as a function of gas price
-
-# Before period
-model_household_before <- lm(Household_cons ~ price_USD_mcubed, data = df_before)
-summary(model_household_before)
-
-# After period
-model_household_after <- lm(Household_cons ~ price_USD_mcubed, data = df_after)
-summary(model_household_after)
-```
-
-```{r}
-library(readr)
-
-df4 <- read_csv2("cons_sec_price_merged.csv")
-
-# Check the first few rows
-head(df4)
-```
-
-```{r}
-# Remove rows 73 to 75
-df4 <- df4[-c(73:75), ]
-
-# Remove columns 7 to 21
-df4 <- df4[, -c(7:21)]
-
-# Check result
-str(df4)
-head(df4)
-```
-
-```{r}
-df4$Month <- as.Date(df4$Month, format = "%d.%m.%Y")
-```
-
-```{r}
-library(lubridate)
-df4$Month <- dmy(df4$Month)
-```
-
-```{r}
-library(lubridate)
-df4$Month <- dmy(df4$Month)
-```
-
-```{r}
-reform_date <- as.Date("2023-01-01")
-df4$Period <- ifelse(df4$Month < reform_date, "Before", "After")
-```
-
-```{r}
-# Add 'Period' column: adjust the reform date as needed
-reform_date <- as.Date("2023-01-01")
-df4$Month <- as.Date(df4$Month)
-df4$Period <- ifelse(df4$Month < reform_date, "Before", "After")
-```
-
-```{r}
-
 ```
