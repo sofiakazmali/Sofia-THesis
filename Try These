@@ -1,0 +1,53 @@
+
+## Cross validation (put everything below this in a code chunk)
+
+library(dplyr)
+library(lubridate)
+library(sandwich)
+library(lmtest)
+
+# Ensure Month is a Date object
+df <- df %>%
+  mutate(Month = dmy(Month)) %>%
+  arrange(Month)
+
+# 75%-25% time-based split
+n_total <- nrow(df)
+n_train <- floor(0.75 * n_total)
+
+train <- df[1:n_train, ]
+test  <- df[(n_train + 1):n_total, ]
+
+# Linear regression model
+model_cv <- lm(Total ~ `Left bank` + `Right bank` + price_USD_mcubed, data = train)
+
+# Standard model summary
+summary(model_cv)
+
+# HAC corrected standard errors
+nw_se_cv <- NeweyWest(model_cv, lag = 12, prewhite = FALSE)
+coeftest(model_cv, vcov = nw_se_cv)
+
+# Predict and calculate RMSE
+predicted <- predict(model_cv, newdata = test)
+rmse_cv <- sqrt(mean((test$Total - predicted)^2))
+rmse_cv
+
+## Autocorrelation test
+# Create time series for Total
+total_ts <- ts(df$Total, start = c(year(min(df$Month)), month(min(df$Month))), frequency = 12)
+
+# ACF and PACF
+acf(total_ts, main = "ACF of Total Consumption")
+pacf(total_ts, main = "PACF of Total Consumption")
+
+# Ljung-Box test for autocorrelation
+Box.test(total_ts, lag = 12, type = "Ljung-Box")
+
+
+## library(tseries)
+
+# ADF test on Total Consumption time series
+adf.test(total_ts)
+
+
